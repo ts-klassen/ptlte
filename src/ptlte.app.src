@@ -1,5 +1,5 @@
 {application, ptlte, [
-    {description, "An OTP library"},
+    {description, "Patlite LR6-USB control (Erlang + Rust NIF)"},
     {vsn, "0.1.0"},
     {registered, []},
     {applications, [
@@ -7,7 +7,7 @@
         stdlib
     ]},
     {env, []},
-    {modules, []},
+    {modules, [ptlte]},
     {licenses, ["Apache-2.0"]},
     {links, []}
  ]}.
