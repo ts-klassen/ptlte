@@ -45,9 +45,48 @@
 -define(PITCH_OFF, 16#0).
 
 -type color() :: 0..4.
+-type color_alias() :: red | yellow | green | blue | white.
 -type led_state() :: 0..16#F.
+-type led_state_alias() ::
+    led_off | led_on | led_pattern1 | led_pattern2 | led_pattern3 | led_pattern4 | led_keep.
 -type buz_pattern() :: 0..16#F.
+-type buz_pattern_alias() ::
+    buzz_off | buzz_on | buzz_pattern1 | buzz_pattern2 | buzz_pattern3 | buzz_pattern4 |
+    buzzer_keep | buzzer_off.
 -type nibble() :: 0..16#F.
+-type optnl(A) :: {value, A} | none.
+
+-spec color_alias(color_alias()) -> optnl(color()).
+color_alias(red) -> {value, ?COLOR_RED};
+color_alias(yellow) -> {value, ?COLOR_YELLOW};
+color_alias(green) -> {value, ?COLOR_GREEN};
+color_alias(blue) -> {value, ?COLOR_BLUE};
+color_alias(white) -> {value, ?COLOR_WHITE};
+color_alias(_) ->
+    none.
+
+-spec led_state_alias(led_state_alias()) -> optnl(led_state()).
+led_state_alias(led_off) -> {value, ?LED_OFF};
+led_state_alias(led_on) -> {value, ?LED_ON};
+led_state_alias(led_pattern1) -> {value, ?LED_PATTERN1};
+led_state_alias(led_pattern2) -> {value, ?LED_PATTERN2};
+led_state_alias(led_pattern3) -> {value, ?LED_PATTERN3};
+led_state_alias(led_pattern4) -> {value, ?LED_PATTERN4};
+led_state_alias(led_keep) -> {value, ?LED_KEEP};
+led_state_alias(_) ->
+    none.
+
+-spec buz_pattern_alias(buz_pattern_alias()) -> optnl(buz_pattern()).
+buz_pattern_alias(buzz_off) -> {value, ?BUZZ_OFF};
+buz_pattern_alias(buzz_on) -> {value, ?BUZZ_ON};
+buz_pattern_alias(buzz_pattern1) -> {value, ?BUZZ_PATTERN1};
+buz_pattern_alias(buzz_pattern2) -> {value, ?BUZZ_PATTERN2};
+buz_pattern_alias(buzz_pattern3) -> {value, ?BUZZ_PATTERN3};
+buz_pattern_alias(buzz_pattern4) -> {value, ?BUZZ_PATTERN4};
+buz_pattern_alias(buzzer_keep) -> {value, ?BUZZER_KEEP};
+buz_pattern_alias(buzzer_off) -> {value, ?BUZZER_OFF};
+buz_pattern_alias(_) ->
+    none.
 
 init() ->
     Priv = code:priv_dir(?MODULE),
@@ -59,8 +98,9 @@ init() ->
     end.
 
 %% @doc Set a single LED's state (color id, pattern nibble).
--spec set_light(color(), led_state()) -> ok | {error, term()}.
-set_light(Color, State) ->
+-spec set_light(color() | color_alias(), led_state() | led_state_alias()) ->
+    ok | {error, term()}.
+set_light(Color, State) when is_integer(Color), is_integer(State) ->
     case {validate_color(Color), validate_nibble(State, state)} of
         {ok, ok} ->
             {LedRy, LedGb, LedW} = assemble_leds(Color, State),
@@ -69,12 +109,34 @@ set_light(Color, State) ->
             Error;
         {_, Error} ->
             Error
+    end;
+set_light(Alias, State) when is_atom(Alias) ->
+    case color_alias(Alias) of
+        {value, Color} ->
+            set_light(Color, State);
+        none ->
+            {error, {unknown_color, Alias}}
+    end;
+set_light(Color, Alias) when is_atom(Alias) ->
+    case led_state_alias(Alias) of
+        {value, State} ->
+            set_light(Color, State);
+        none ->
+            {error, {unknown_led_state, Alias}}
     end.
 
 %% @doc Set all LEDs at once (patterns are nibbles).
--spec set_tower(led_state(), led_state(), led_state(), led_state(), led_state()) ->
+-spec set_tower(
+    led_state() | led_state_alias(),
+    led_state() | led_state_alias(),
+    led_state() | led_state_alias(),
+    led_state() | led_state_alias(),
+    led_state() | led_state_alias()
+) ->
     ok | {error, term()}.
-set_tower(Red, Yellow, Green, Blue, White) ->
+set_tower(Red, Yellow, Green, Blue, White)
+    when is_integer(Red), is_integer(Yellow), is_integer(Green), is_integer(Blue), is_integer(White)
+->
     case validate_nibbles([{red, Red}, {yellow, Yellow}, {green, Green}, {blue, Blue}, {white, White}]) of
         {ok, [R, Y, G, B, W]} ->
             LedRy = (R bsl 4) bor Y,
@@ -83,11 +145,36 @@ set_tower(Red, Yellow, Green, Blue, White) ->
             send_report(build_report(?BUZZER_KEEP, 0, LedRy, LedGb, LedW));
         Error ->
             Error
+    end;
+set_tower(Alias, Yellow, Green, Blue, White) when is_atom(Alias) ->
+    case led_state_alias(Alias) of
+        {value, State} -> set_tower(State, Yellow, Green, Blue, White);
+        none -> {error, {unknown_led_state, Alias}}
+    end;
+set_tower(Red, Alias, Green, Blue, White) when is_atom(Alias) ->
+    case led_state_alias(Alias) of
+        {value, State} -> set_tower(Red, State, Green, Blue, White);
+        none -> {error, {unknown_led_state, Alias}}
+    end;
+set_tower(Red, Yellow, Alias, Blue, White) when is_atom(Alias) ->
+    case led_state_alias(Alias) of
+        {value, State} -> set_tower(Red, Yellow, State, Blue, White);
+        none -> {error, {unknown_led_state, Alias}}
+    end;
+set_tower(Red, Yellow, Green, Alias, White) when is_atom(Alias) ->
+    case led_state_alias(Alias) of
+        {value, State} -> set_tower(Red, Yellow, Green, State, White);
+        none -> {error, {unknown_led_state, Alias}}
+    end;
+set_tower(Red, Yellow, Green, Blue, Alias) when is_atom(Alias) ->
+    case led_state_alias(Alias) of
+        {value, State} -> set_tower(Red, Yellow, Green, Blue, State);
+        none -> {error, {unknown_led_state, Alias}}
     end.
 
 %% @doc Set buzzer pattern/limit with default pitches.
--spec set_buzzer(buz_pattern(), nibble()) -> ok | {error, term()}.
-set_buzzer(Pattern, Limit) ->
+-spec set_buzzer(buz_pattern() | buz_pattern_alias(), nibble()) -> ok | {error, term()}.
+set_buzzer(Pattern, Limit) when is_integer(Pattern), is_integer(Limit) ->
     case validate_nibbles([{pattern, Pattern}, {limit, Limit}]) of
         {ok, [P, L]} ->
             Buzzer = (L bsl 4) bor P,
@@ -96,11 +183,21 @@ set_buzzer(Pattern, Limit) ->
             send_report(build_report(Buzzer, Pitch, Keep, Keep, ?LED_KEEP bsl 4));
         Error ->
             Error
+    end;
+set_buzzer(Alias, Limit) when is_atom(Alias) ->
+    case buz_pattern_alias(Alias) of
+        {value, Pattern} ->
+            set_buzzer(Pattern, Limit);
+        none ->
+            {error, {unknown_buzzer_pattern, Alias}}
     end.
 
 %% @doc Set buzzer with explicit pitch A/B nibbles.
--spec set_buzzer(buz_pattern(), nibble(), nibble(), nibble()) -> ok | {error, term()}.
-set_buzzer(Pattern, Limit, PitchA, PitchB) ->
+-spec set_buzzer(buz_pattern() | buz_pattern_alias(), nibble(), nibble(), nibble()) ->
+    ok | {error, term()}.
+set_buzzer(Pattern, Limit, PitchA, PitchB)
+    when is_integer(Pattern), is_integer(Limit), is_integer(PitchA), is_integer(PitchB)
+->
     case validate_nibbles([{pattern, Pattern}, {limit, Limit}, {pitch_a, PitchA}, {pitch_b, PitchB}]) of
         {ok, [P, L, A, B]} ->
             Buzzer = (L bsl 4) bor P,
@@ -109,6 +206,13 @@ set_buzzer(Pattern, Limit, PitchA, PitchB) ->
             send_report(build_report(Buzzer, Pitch, Keep, Keep, ?LED_KEEP bsl 4));
         Error ->
             Error
+    end;
+set_buzzer(Alias, Limit, PitchA, PitchB) when is_atom(Alias) ->
+    case buz_pattern_alias(Alias) of
+        {value, Pattern} ->
+            set_buzzer(Pattern, Limit, PitchA, PitchB);
+        none ->
+            {error, {unknown_buzzer_pattern, Alias}}
     end.
 
 %% @doc Turn off all LEDs and buzzer.
