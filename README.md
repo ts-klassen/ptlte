@@ -46,6 +46,9 @@ ptlte:set_buzzer(2, 3, 6, 0).
 
 %% All off
 ptlte:reset().
+
+%% Raw send if you already built the 8-byte HID report (red solid example)
+ptlte:send_report([0, 0, 15, 0, 31, 255, 240, 0]).
 ```
 
 Return values: `ok` or `{error, device_not_found | {invalid_arg, Field} | {usb_error, String} | short_write}`.
